@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Problem, SolveResponse } from "@/lib/contract";
+import { downloadProblem, parseProblemFile } from "@/lib/fileIO";
 import { BackendUnavailableError, examples, solveProblem } from "@/lib/solverClient";
 import {
   draftToProblem,
@@ -28,6 +29,7 @@ export function SimplexApp() {
   const [connectionError, setConnectionError] = useState(false);
   const [solved, setSolved] = useState<SolvedState | null>(null);
   const [mode, setMode] = useState<SolveMode>("direct");
+  const [fileError, setFileError] = useState<string | null>(null);
   const requestId = useRef(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -54,6 +56,7 @@ export function SimplexApp() {
     );
     setDraft(sized);
     setExampleId("");
+    setFileError(null);
     resetOutcome();
   };
 
@@ -61,6 +64,7 @@ export function SimplexApp() {
     const example = examples.find((item) => item.id === id);
     setExampleId(id);
     setShowIssues(false);
+    setFileError(null);
     resetOutcome();
     if (example) setDraft(problemToDraft(example.problem));
   };
@@ -69,6 +73,30 @@ export function SimplexApp() {
     setDraft(emptyDraft(draft.objective.length, draft.constraints.length, draft.sense));
     setExampleId("");
     setShowIssues(false);
+    setFileError(null);
+    resetOutcome();
+  };
+
+  const saveFile = () => {
+    setFileError(null);
+    if (issues.length > 0) {
+      // Solo se guardan problemas completos; se marcan los datos que faltan.
+      setShowIssues(true);
+      return;
+    }
+    downloadProblem(draftToProblem(draft), `${exampleId || "problema"}.json`);
+  };
+
+  const openFile = (text: string) => {
+    const result = parseProblemFile(text);
+    if (!result.ok) {
+      setFileError(result.message);
+      return;
+    }
+    setDraft(problemToDraft(result.problem));
+    setExampleId("");
+    setShowIssues(false);
+    setFileError(null);
     resetOutcome();
   };
 
@@ -110,6 +138,9 @@ export function SimplexApp() {
           loading={loading}
           mode={mode}
           onModeChange={setMode}
+          fileError={fileError}
+          onSaveFile={saveFile}
+          onOpenFile={openFile}
           onDraftChange={editDraft}
           onExampleChange={loadExample}
           onClear={clear}
