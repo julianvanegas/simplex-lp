@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import type { Problem, SolveResponse, Solution } from "@/lib/contract";
 import { formatRational, type NumberFormat } from "@/lib/numbers";
 import { GraphView } from "./GraphView";
@@ -153,14 +154,75 @@ function SolutionBlock({ title, solution, format }: { title?: string; solution: 
   );
 }
 
+/** Coeficiente legible para el enunciado: 3, 0,5, −2. */
+const coefficientText = (value: number) => String(Math.abs(value)).replace(".", ",");
+
+function LinearExpression({ coefficients }: { coefficients: number[] }) {
+  const terms = coefficients.map((value, j) => ({ value, name: `x${j + 1}` })).filter((term) => term.value !== 0);
+  if (terms.length === 0) return <>0</>;
+  return (
+    <>
+      {terms.map((term, index) => (
+        <Fragment key={term.name}>
+          {index === 0 ? (term.value < 0 ? "−" : "") : term.value < 0 ? " − " : " + "}
+          {Math.abs(term.value) !== 1 && coefficientText(term.value)}
+          <Variable name={term.name} />
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** Enunciado del problema, para que el PDF se entienda sin la página. */
+function ProblemStatement({ problem }: { problem: Problem }) {
+  const names = problem.objective.map((_, j) => `x${j + 1}`);
+  return (
+    <div className="print-problem math">
+      <p>
+        {problem.sense === "max" ? "Maximizar" : "Minimizar"} <var>Z</var> ={" "}
+        <LinearExpression coefficients={problem.objective} />
+      </p>
+      <p>Sujeto a</p>
+      <ol>
+        {problem.constraints.map((constraint, i) => (
+          <li key={i}>
+            <LinearExpression coefficients={constraint.coefficients} /> {RELATION_SYMBOL[constraint.relation]}{" "}
+            {constraint.rhs < 0 ? "−" : ""}
+            {coefficientText(constraint.rhs)}
+          </li>
+        ))}
+      </ol>
+      <p>
+        <VariableList names={names} /> ≥ 0
+      </p>
+    </div>
+  );
+}
+
+const SECTION_LABELS: Record<TabId, string> = {
+  solution: "Solución",
+  steps: "Paso a paso",
+  graph: "Método gráfico",
+  sensitivity: "Sensibilidad",
+};
+
 export function ResultsPanel({ problem, response, mode }: ResultsPanelProps & { mode: SolveMode }) {
   const [format, setFormat] = useState<NumberFormat>("fraction");
-  const tabs: { id: TabId; label: string }[] = [
-    { id: "solution", label: "Solución" },
-    ...(mode === "steps" ? [{ id: "steps" as const, label: "Paso a paso" }] : []),
-    { id: "graph", label: "Método gráfico" },
-    { id: "sensitivity", label: "Sensibilidad" },
-  ];
+  const tabs: { id: TabId; label: string }[] = (
+    ["solution", ...(mode === "steps" ? ["steps" as const] : []), "graph", "sensitivity"] as TabId[]
+  ).map((id) => ({ id, label: SECTION_LABELS[id] }));
+  // Al exportar se dibujan todas las secciones seguidas y se abre la impresión del navegador.
+  const [printing, setPrinting] = useState(false);
+
+  const exportPdf = () => {
+    // flushSync dibuja el informe antes de abrir el diálogo de impresión.
+    flushSync(() => setPrinting(true));
+    const title = document.title;
+    document.title = "SimpleX LP - solución paso a paso"; // nombre sugerido del archivo
+    window.print(); // espera a que el usuario cierre el diálogo
+    document.title = title;
+    setPrinting(false);
+  };
   const [active, setActive] = useState<TabId>(firstTab(mode));
   // Si el usuario cambia de modo con un resultado en pantalla, se abre la pestaña de ese modo.
   const [shownMode, setShownMode] = useState(mode);
@@ -202,6 +264,9 @@ export function ResultsPanel({ problem, response, mode }: ResultsPanelProps & { 
             </button>
           ))}
         </div>
+        <button type="button" className="button-quiet button-export" onClick={exportPdf}>
+          Exportar PDF
+        </button>
         <label className="format-picker">
           Números
           <select value={format} onChange={(event) => setFormat(event.target.value as NumberFormat)}>
@@ -211,30 +276,52 @@ export function ResultsPanel({ problem, response, mode }: ResultsPanelProps & { 
         </label>
       </div>
 
-      <div id="result-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="sheet result-sheet">
-        {active === "solution" &&
-          (response.solution ? (
-            <>
-              <SolutionBlock
-                title={response.alternateSolution ? "Primera solución óptima" : undefined}
-                solution={response.solution}
-                format={format}
-              />
-              {response.alternateSolution && (
-                <SolutionBlock title="Otra solución óptima" solution={response.alternateSolution} format={format} />
-              )}
-            </>
-          ) : (
-            <p className="empty">
-              {response.status === "infeasible"
-                ? "No hay valores que reportar porque el problema no tiene puntos factibles."
-                : "No hay valores que reportar porque Z no alcanza un valor óptimo."}
-            </p>
+      {printing && (
+        <div className="sheet result-sheet print-report">
+          <h1>SimpleX LP · Método de la Gran M</h1>
+          <section className="print-section">
+            <h2>Problema</h2>
+            <ProblemStatement problem={problem} />
+          </section>
+          {(Object.keys(SECTION_LABELS) as TabId[]).map((id) => (
+            <section key={id} className="print-section">
+              <h2>{SECTION_LABELS[id]}</h2>
+              {renderSection(id)}
+            </section>
           ))}
-        {active === "steps" && <StepByStep problem={problem} response={response} format={format} />}
-        {active === "graph" && <GraphView problem={problem} response={response} format={format} />}
-        {active === "sensitivity" && <SensitivityView response={response} />}
+        </div>
+      )}
+
+      <div id="result-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="sheet result-sheet">
+        {/* Mientras se imprime solo existe el informe, para no repetir el gráfico ni los anclajes. */}
+        {!printing && renderSection(active)}
       </div>
     </section>
   );
+
+  function renderSection(id: TabId) {
+    if (id === "steps") {
+      return <StepByStep problem={problem} response={response} format={format} expandOperations={printing} />;
+    }
+    if (id === "graph") return <GraphView problem={problem} response={response} format={format} />;
+    if (id === "sensitivity") return <SensitivityView response={response} />;
+    return response.solution ? (
+      <>
+        <SolutionBlock
+          title={response.alternateSolution ? "Primera solución óptima" : undefined}
+          solution={response.solution}
+          format={format}
+        />
+        {response.alternateSolution && (
+          <SolutionBlock title="Otra solución óptima" solution={response.alternateSolution} format={format} />
+        )}
+      </>
+    ) : (
+      <p className="empty">
+        {response.status === "infeasible"
+          ? "No hay valores que reportar porque el problema no tiene puntos factibles."
+          : "No hay valores que reportar porque Z no alcanza un valor óptimo."}
+      </p>
+    );
+  }
 }

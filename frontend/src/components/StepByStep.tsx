@@ -237,7 +237,12 @@ function DecisionSummary({ iteration, format }: StepProps & { iteration: Iterati
   );
 }
 
-export function StepByStep({ problem, response, format }: StepProps & { problem: Problem; response: SolveResponse }) {
+export function StepByStep({
+  problem,
+  response,
+  format,
+  expandOperations = false,
+}: StepProps & { problem: Problem; response: SolveResponse; expandOperations?: boolean }) {
   const columns = response.standardForm.variables.map((variable) => variable.name);
   return (
     <div className="steps">
@@ -266,7 +271,7 @@ export function StepByStep({ problem, response, format }: StepProps & { problem:
               <p className="tie-note">Esta base ya había aparecido: hay un ciclo. Desde aquí se aplica la regla de Bland.</p>
             )}
             {iteration.operations && (
-              <details className="operations">
+              <details className="operations" open={expandOperations || undefined}>
                 <summary>Operaciones de fila aplicadas</summary>
                 <ul className="math">
                   {iteration.operations.map((operation, index) => (
