@@ -10,6 +10,11 @@ import { StepByStep } from "./StepByStep";
 
 type TabId = "solution" | "steps" | "graph" | "sensitivity";
 
+/** Solución directa: solo el resultado. Paso a paso: además, todas las iteraciones. */
+export type SolveMode = "direct" | "steps";
+
+const firstTab = (mode: SolveMode): TabId => (mode === "steps" ? "steps" : "solution");
+
 interface ResultsPanelProps {
   problem: Problem;
   response: SolveResponse;
@@ -148,15 +153,21 @@ function SolutionBlock({ title, solution, format }: { title?: string; solution: 
   );
 }
 
-export function ResultsPanel({ problem, response }: ResultsPanelProps) {
+export function ResultsPanel({ problem, response, mode }: ResultsPanelProps & { mode: SolveMode }) {
   const [format, setFormat] = useState<NumberFormat>("fraction");
   const tabs: { id: TabId; label: string }[] = [
     { id: "solution", label: "Solución" },
-    { id: "steps", label: "Paso a paso" },
+    ...(mode === "steps" ? [{ id: "steps" as const, label: "Paso a paso" }] : []),
     { id: "graph", label: "Método gráfico" },
     { id: "sensitivity", label: "Sensibilidad" },
   ];
-  const [active, setActive] = useState<TabId>("solution");
+  const [active, setActive] = useState<TabId>(firstTab(mode));
+  // Si el usuario cambia de modo con un resultado en pantalla, se abre la pestaña de ese modo.
+  const [shownMode, setShownMode] = useState(mode);
+  if (mode !== shownMode) {
+    setShownMode(mode);
+    setActive(firstTab(mode));
+  }
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
 
   const onTabKey = (event: KeyboardEvent, index: number) => {

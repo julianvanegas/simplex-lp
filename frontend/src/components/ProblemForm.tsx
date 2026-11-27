@@ -5,6 +5,7 @@ import type { Relation, Sense } from "@/lib/contract";
 import { examples } from "@/lib/solverClient";
 import { MAX_DIMENSION, type ProblemDraft, type ValidationIssue } from "@/lib/validation";
 import { RELATION_SYMBOL, Variable } from "./Math";
+import type { SolveMode } from "./ResultsPanel";
 
 interface ProblemFormProps {
   draft: ProblemDraft;
@@ -12,6 +13,8 @@ interface ProblemFormProps {
   issues: ValidationIssue[];
   showIssues: boolean;
   loading: boolean;
+  mode: SolveMode;
+  onModeChange: (mode: SolveMode) => void;
   onDraftChange: (draft: ProblemDraft) => void;
   onExampleChange: (id: string) => void;
   onClear: () => void;
@@ -26,6 +29,8 @@ export function ProblemForm({
   issues,
   showIssues,
   loading,
+  mode,
+  onModeChange,
   onDraftChange,
   onExampleChange,
   onClear,
@@ -217,6 +222,13 @@ export function ProblemForm({
       )}
 
       <div className="model-actions">
+        <label className="mode-picker">
+          Mostrar
+          <select value={mode} onChange={(event) => onModeChange(event.target.value as SolveMode)}>
+            <option value="direct">Solución directa</option>
+            <option value="steps">Paso a paso</option>
+          </select>
+        </label>
         <button type="button" className="button-quiet" onClick={onClear}>
           Vaciar coeficientes
         </button>
