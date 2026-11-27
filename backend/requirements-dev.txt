@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8
+httpx2>=2.16
+# Solo para verificar resultados en las pruebas. La rúbrica prohíbe usarlo para resolver.
+scipy>=1.14
