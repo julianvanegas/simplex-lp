@@ -326,6 +326,30 @@ button { cursor: pointer; }
   .tabs button { padding: 8px 10px; }
 }
 
+.button-export { min-height: 0; margin-left: auto; padding: 4px 4px 8px; font-size: 0.875rem; color: var(--ink-soft); }
+.print-report h1 { font-size: 1.375rem; }
+.print-section { margin-top: 28px; }
+.print-section > h2 { margin-bottom: 12px; padding-bottom: 4px; font-size: 1.25rem; border-bottom: 1px solid var(--sheet-line); }
+.print-problem p { margin: 4px 0; }
+.print-problem ol { margin: 4px 0; padding-left: 28px; }
+.print-problem li::marker { content: "(" counter(list-item) ")  "; }
+
+/* Exportar PDF: solo se imprime el informe con todas las secciones. */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff; }
+  .page { max-width: none; padding: 0; }
+  .masthead, .model, .results-bar, #result-panel, .iteration-nav, .player-controls { display: none !important; }
+  .sheet { border: 0; }
+  .print-report { padding: 0; }
+  .print-section { break-before: page; }
+  /* El enunciado y la solución comparten la primera hoja. */
+  .print-section:nth-of-type(-n + 2) { break-before: auto; }
+  .iteration, .solution-block, .data-table, .graph, .notice { break-inside: avoid; }
+  .table-scroll { overflow: visible; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .trace-line { animation: none; }
