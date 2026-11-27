@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Problem, SolveResponse } from "@/lib/contract";
 import { downloadProblem, parseProblemFile } from "@/lib/fileIO";
-import { BackendUnavailableError, examples, solveProblem } from "@/lib/solverClient";
+import { API_URL, SolveError, examples, solveProblem } from "@/lib/solverClient";
 import {
   draftToProblem,
   emptyDraft,
@@ -16,6 +16,35 @@ import {
 import { ProblemForm } from "./ProblemForm";
 import { ResultsPanel, type SolveMode } from "./ResultsPanel";
 
+/** Mensaje claro para cada forma en que puede fallar el cálculo. */
+function SolveErrorNotice({ error }: { error: SolveError }) {
+  const notices: Record<SolveError["kind"], { title: string; body: string }> = {
+    unavailable: {
+      title: "No se pudo conectar con el servidor de cálculo",
+      body: `El problema está bien escrito, pero el servidor (${API_URL}) no respondió. Revisa que esté encendido y que tengas conexión. Los ejemplos guardados sí se pueden ver.`,
+    },
+    "not-ready": {
+      title: "El motor de cálculo todavía no está listo",
+      body: "El servidor respondió, pero aún no resuelve problemas nuevos. Mientras tanto, los ejemplos guardados se muestran con su resultado.",
+    },
+    invalid: {
+      title: "El servidor rechazó el problema",
+      body: error.message || "Revisa los datos del problema.",
+    },
+    server: {
+      title: "El servidor tuvo un error al resolver este problema",
+      body: error.message || "Intenta de nuevo. Si se repite, revisa la consola del backend.",
+    },
+  };
+  const notice = notices[error.kind];
+  return (
+    <section className="notice notice-error">
+      <h2>{notice.title}</h2>
+      <p>{notice.body}</p>
+    </section>
+  );
+}
+
 interface SolvedState {
   problem: Problem;
   response: SolveResponse;
@@ -26,7 +55,7 @@ export function SimplexApp() {
   const [exampleId, setExampleId] = useState(examples[0].id);
   const [showIssues, setShowIssues] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
+  const [solveError, setSolveError] = useState<SolveError | null>(null);
   const [solved, setSolved] = useState<SolvedState | null>(null);
   const [mode, setMode] = useState<SolveMode>("direct");
   const [fileError, setFileError] = useState<string | null>(null);
@@ -36,14 +65,14 @@ export function SimplexApp() {
   const issues = useMemo(() => validateDraft(draft), [draft]);
 
   useEffect(() => {
-    if (solved || connectionError) resultsRef.current?.focus();
-  }, [solved, connectionError]);
+    if (solved || solveError) resultsRef.current?.focus();
+  }, [solved, solveError]);
 
   const resetOutcome = () => {
     requestId.current += 1;
     setLoading(false);
     setSolved(null);
-    setConnectionError(false);
+    setSolveError(null);
   };
 
   const editDraft = (next: ProblemDraft) => {
@@ -111,8 +140,8 @@ export function SimplexApp() {
       const response = await solveProblem(problem);
       if (current === requestId.current) setSolved({ problem, response });
     } catch (error) {
-      if (!(error instanceof BackendUnavailableError)) throw error;
-      if (current === requestId.current) setConnectionError(true);
+      if (!(error instanceof SolveError)) throw error;
+      if (current === requestId.current) setSolveError(error);
     } finally {
       if (current === requestId.current) setLoading(false);
     }
@@ -148,16 +177,7 @@ export function SimplexApp() {
         />
 
         <div ref={resultsRef} tabIndex={-1} className="results-anchor" aria-live="polite">
-          {connectionError && (
-            <section className="notice notice-error">
-              <h2>No se pudo conectar con el servidor de cálculo</h2>
-              <p>
-                El problema está bien escrito, pero no hubo respuesta del servidor. En esta
-                demostración solo responden los problemas de la lista de ejemplos: carga uno
-                para ver el resultado.
-              </p>
-            </section>
-          )}
+          {solveError && <SolveErrorNotice error={solveError} />}
           {solved && (
             <ResultsPanel
               problem={solved.problem}

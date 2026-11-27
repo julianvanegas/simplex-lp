@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseProblemFile, serializeProblem } from "./fileIO";
 import { buildPlaybackSteps } from "./graphPlayback";
 import { formatBigM, formatRational, formatSolver } from "./numbers";
-import { BackendUnavailableError, examples, solveProblem } from "./solverClient";
+import { API_URL, SolveError, examples, solveProblem } from "./solverClient";
 import {
   draftToProblem,
   emptyDraft,
@@ -56,21 +56,63 @@ describe("formato", () => {
   });
 });
 
-describe("datos de demostración", () => {
-  it("cada ejemplo pasa la validación y se recupera por su contenido", async () => {
+describe("conexión con el servidor", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const reply = (status: number, body: unknown) =>
+    vi.fn().mockImplementation(async () => new Response(JSON.stringify(body), { status }));
+  const unsaved = () => {
+    const problem = structuredClone(examples[0].problem);
+    problem.objective[0] = 99;
+    return problem;
+  };
+  const failureOf = (promise: Promise<unknown>) =>
+    promise.then(
+      () => null,
+      (error: unknown) => (error instanceof SolveError ? { kind: error.kind, message: error.message } : error),
+    );
+
+  it("envía el problema y devuelve la respuesta del servidor", async () => {
+    const fetchMock = reply(200, examples[1].response);
+    vi.stubGlobal("fetch", fetchMock);
+    const problem = unsaved();
+    await expect(solveProblem(problem)).resolves.toEqual(examples[1].response);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_URL}/api/solve`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual(problem);
+  });
+
+  it("sin motor (501) muestra la respuesta guardada de cada ejemplo", async () => {
+    vi.stubGlobal("fetch", reply(501, { detail: "sin motor" }));
     for (const example of examples) {
       const draft = problemToDraft(example.problem);
       expect(validateDraft(draft)).toEqual([]);
       await expect(solveProblem(draftToProblem(draft))).resolves.toBe(example.response);
     }
+    expect(await failureOf(solveProblem(unsaved()))).toEqual({ kind: "not-ready", message: "sin motor" });
   });
 
-  it("un problema no guardado se comporta como servidor desconectado", async () => {
-    const problem = structuredClone(examples[0].problem);
-    problem.objective[0] = 99;
-    await expect(solveProblem(problem)).rejects.toBeInstanceOf(BackendUnavailableError);
+  it("sin conexión solo responde los ejemplos guardados", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(solveProblem(examples[0].problem)).resolves.toBe(examples[0].response);
+    expect(await failureOf(solveProblem(unsaved()))).toEqual({ kind: "unavailable", message: "" });
   });
 
+  it("transmite el mensaje del servidor cuando rechaza el problema o falla", async () => {
+    vi.stubGlobal("fetch", reply(422, { detail: "La restricción 1 tiene 1 coeficientes" }));
+    expect(await failureOf(solveProblem(examples[0].problem))).toEqual({
+      kind: "invalid",
+      message: "La restricción 1 tiene 1 coeficientes",
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Internal Server Error", { status: 500 })));
+    expect(await failureOf(solveProblem(examples[0].problem))).toEqual({ kind: "server", message: "" });
+  });
+});
+
+describe("ejemplos guardados", () => {
   it("reproduce los resultados de los PDF", () => {
     const byId = Object.fromEntries(examples.map((example) => [example.id, example.response]));
     expect(byId.wyndor.solution?.z).toBe("36");

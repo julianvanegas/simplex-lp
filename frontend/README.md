@@ -9,13 +9,20 @@ npm run dev
 
 Otros comandos: `npm test`, `npm run lint`, `npm run build`.
 
-## Estado actual: demostración
-
-No hay backend todavía. `src/data/examples.json` guarda problemas ya resueltos. Si el problema escrito coincide con uno de ellos se muestra su resultado; si no, la interfaz informa que no pudo conectarse con el servidor de cálculo.
-
 ## Conexión con el backend
 
-Solo hay que reemplazar el cuerpo de `solveProblem` en `src/lib/solverClient.ts` por la llamada REST. Debe recibir un `Problem` y devolver un `SolveResponse`, ambos definidos en `src/lib/contract.ts`.
+`solveProblem` en `src/lib/solverClient.ts` envía el problema a `POST /api/solve` del backend (carpeta `backend/`). Recibe un `Problem` y devuelve un `SolveResponse`, ambos definidos en `src/lib/contract.ts`.
+
+La dirección del backend se toma de `NEXT_PUBLIC_API_URL` (por defecto `http://localhost:8000`). Para usar otra, créela antes de compilar o arrancar:
+
+```bash
+# Windows PowerShell
+$env:NEXT_PUBLIC_API_URL = "https://mi-backend.example.com"
+# macOS / Linux
+export NEXT_PUBLIC_API_URL=https://mi-backend.example.com
+```
+
+Si el backend no responde o todavía no tiene motor (501), los problemas que coinciden con uno de `src/data/examples.json` se muestran con su respuesta guardada; los demás muestran un aviso claro. Si el backend rechaza el problema (422), se muestra su mensaje.
 
 Reglas del contrato:
 
