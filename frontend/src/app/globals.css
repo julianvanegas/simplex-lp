@@ -181,6 +181,7 @@ button { cursor: pointer; }
 .tabs button { min-height: 44px; padding: 8px 16px; background: transparent; border: 1px solid transparent; border-bottom: 0; }
 .tabs button:hover { background: var(--sheet); }
 .tabs button[aria-selected="true"] { position: relative; top: 1px; font-weight: 600; background: var(--sheet); border-color: var(--sheet-line); box-shadow: inset 0 2px var(--navy); }
+.mode-picker { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; font-size: 0.875rem; color: var(--ink-soft); }
 .format-picker { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.875rem; color: var(--ink-soft); }
 .result-sheet { padding: 24px; }
 .empty { max-width: 70ch; }
@@ -321,6 +322,7 @@ button { cursor: pointer; }
   .model, .result-sheet { padding: 16px; }
   .field-wide { flex-basis: 100%; }
   .model-actions .button-main { flex: 1; }
+  .mode-picker { flex-basis: 100%; }
   .tabs button { padding: 8px 10px; }
 }
 
