@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ChangeEvent } from "react";
+import { Fragment, useRef, type ChangeEvent } from "react";
 import type { Relation, Sense } from "@/lib/contract";
 import { examples } from "@/lib/solverClient";
 import { MAX_DIMENSION, type ProblemDraft, type ValidationIssue } from "@/lib/validation";
@@ -15,6 +15,9 @@ interface ProblemFormProps {
   loading: boolean;
   mode: SolveMode;
   onModeChange: (mode: SolveMode) => void;
+  fileError: string | null;
+  onSaveFile: () => void;
+  onOpenFile: (text: string) => void;
   onDraftChange: (draft: ProblemDraft) => void;
   onExampleChange: (id: string) => void;
   onClear: () => void;
@@ -31,11 +34,22 @@ export function ProblemForm({
   loading,
   mode,
   onModeChange,
+  fileError,
+  onSaveFile,
+  onOpenFile,
   onDraftChange,
   onExampleChange,
   onClear,
   onSolve,
 }: ProblemFormProps) {
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const readFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Se limpia para poder abrir de nuevo el mismo archivo después de editarlo.
+    event.target.value = "";
+    if (file) onOpenFile(await file.text());
+  };
   const visibleIssues = showIssues ? issues : [];
   const invalid = new Set(visibleIssues.map((issue) => issue.field));
   const selectedExample = examples.find((example) => example.id === exampleId);
@@ -221,6 +235,13 @@ export function ProblemForm({
         </div>
       )}
 
+      {fileError && (
+        <div className="issue-list" role="alert">
+          <h2>No se pudo abrir el archivo</h2>
+          <p>{fileError}</p>
+        </div>
+      )}
+
       <div className="model-actions">
         <label className="mode-picker">
           Mostrar
@@ -229,6 +250,19 @@ export function ProblemForm({
             <option value="steps">Paso a paso</option>
           </select>
         </label>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={readFile}
+        />
+        <button type="button" className="button-quiet" onClick={() => fileInput.current?.click()}>
+          Abrir archivo
+        </button>
+        <button type="button" className="button-quiet" onClick={onSaveFile}>
+          Guardar archivo
+        </button>
         <button type="button" className="button-quiet" onClick={onClear}>
           Vaciar coeficientes
         </button>

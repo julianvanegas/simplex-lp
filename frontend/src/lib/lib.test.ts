@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseProblemFile, serializeProblem } from "./fileIO";
 import { buildPlaybackSteps } from "./graphPlayback";
 import { formatBigM, formatRational, formatSolver } from "./numbers";
 import { BackendUnavailableError, examples, solveProblem } from "./solverClient";
@@ -104,5 +105,43 @@ describe("reproducción del gráfico", () => {
   it("detecta los pivotes que no mueven el punto", () => {
     expect(stepsOf("ciclado-beale").some((step) => step.samePointAsNext)).toBe(true);
     expect(stepsOf("wyndor").some((step) => step.samePointAsNext)).toBe(false);
+  });
+});
+
+describe("archivos JSON", () => {
+  const messageFor = (data: unknown) => {
+    const result = parseProblemFile(JSON.stringify(data));
+    return result.ok ? null : result.message;
+  };
+  const wyndor = examples[0].problem;
+
+  it("guarda y vuelve a abrir el mismo problema", () => {
+    for (const example of examples) {
+      expect(parseProblemFile(serializeProblem(example.problem))).toEqual({ ok: true, problem: example.problem });
+    }
+  });
+
+  it("ignora campos extra del archivo", () => {
+    const result = parseProblemFile(JSON.stringify({ ...wyndor, title: "mi problema" }));
+    expect(result).toEqual({ ok: true, problem: wyndor });
+  });
+
+  it("explica por qué no puede abrir un archivo", () => {
+    expect(parseProblemFile("{no es json").ok).toBe(false);
+    expect(messageFor([1, 2])).toBe("El archivo no contiene un problema.");
+    expect(messageFor({ ...wyndor, sense: "maximo" })).toContain("«sense»");
+    expect(messageFor({ ...wyndor, objective: [3, "5"] })).toBe(
+      "El coeficiente de x2 en la función objetivo no es un número.",
+    );
+    expect(messageFor({ ...wyndor, constraints: [] })).toBe("El archivo tiene 0 restricciones; deben ser entre 1 y 20.");
+    expect(messageFor({ ...wyndor, constraints: [{ coefficients: [1], relation: "<=", rhs: 4 }] })).toBe(
+      "La restricción 1 tiene 1 coeficientes, pero la función objetivo tiene 2 variables.",
+    );
+    expect(messageFor({ ...wyndor, constraints: [{ coefficients: [1, 0], relation: "<", rhs: 4 }] })).toContain(
+      "La relación de la restricción 1",
+    );
+    expect(messageFor({ ...wyndor, constraints: [{ coefficients: [1, 0], relation: "<=" }] })).toBe(
+      "El lado derecho de la restricción 1 no es un número.",
+    );
   });
 });
