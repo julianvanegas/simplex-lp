@@ -1,0 +1,21 @@
+# Despliegue del backend en Render (New → Blueprint → elegir este repositorio).
+# El frontend se publica en Vercel con la carpeta raíz `frontend`.
+services:
+  - type: web
+    name: simplex-lp-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      # URL del frontend en Vercel, por ejemplo https://simplex-lp.vercel.app
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Vistas previas de Vercel de cada PR, por ejemplo ^https://simplex-lp-.*\.vercel\.app$
+      - key: ALLOWED_ORIGIN_REGEX
+        sync: false

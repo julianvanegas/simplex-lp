@@ -32,7 +32,10 @@ uvicorn app.main:app --reload --port 8000
 - `POST http://localhost:8000/api/solve` → recibe un `Problem` y devuelve un `SolveResponse`
 - Documentación interactiva: `http://localhost:8000/docs`
 
-Variable de entorno opcional: `ALLOWED_ORIGINS`, lista separada por comas de los orígenes que pueden llamar a la API (por defecto `http://localhost:3000`). En producción se pone la URL del frontend desplegado.
+Variables de entorno opcionales:
+
+- `ALLOWED_ORIGINS`: lista separada por comas de los orígenes que pueden llamar a la API (por defecto `http://localhost:3000`). En producción se pone la URL del frontend desplegado.
+- `ALLOWED_ORIGIN_REGEX`: expresión regular para orígenes que cambian, como las vistas previas de Vercel de cada PR (`^https://simplex-lp-.*\.vercel\.app$`).
 
 ## Pruebas
 
