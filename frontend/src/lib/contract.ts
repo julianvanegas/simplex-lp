@@ -141,6 +141,16 @@ export interface GraphVertex {
   lines: string[];
 }
 
+export interface GraphPoint {
+  x1: Rational;
+  x2: Rational;
+}
+
+export interface GraphViewBounds {
+  xMax: Rational;
+  yMax: Rational;
+}
+
 export type Graphical =
   | { applicable: false }
   | {
@@ -150,6 +160,11 @@ export type Graphical =
       vertices: GraphVertex[];
       infeasibleCorners: { x1: Rational; x2: Rational; z: Rational; lines: string[] }[];
       objectiveLine: { a: Rational; b: Rational; z: Rational } | null;
+      status?: "optimal" | "infeasible" | "unbounded";
+      multipleOptima?: boolean;
+      viewBounds?: GraphViewBounds | null;
+      regionPolygon?: GraphPoint[];
+      cutPoints?: GraphPoint[];
     };
 
 export interface SolveResponse {

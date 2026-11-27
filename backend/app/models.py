@@ -300,6 +300,16 @@ class ObjectiveLine(ContractModel):
     z: Rational
 
 
+class GraphPoint(ContractModel):
+    x1: Rational
+    x2: Rational
+
+
+class GraphViewBounds(ContractModel):
+    x_max: Rational
+    y_max: Rational
+
+
 class GraphNotApplicable(ContractModel):
     applicable: Literal[False]
 
@@ -311,6 +321,11 @@ class GraphApplicable(ContractModel):
     vertices: list[GraphVertex]
     infeasible_corners: list[InfeasibleCorner]
     objective_line: ObjectiveLine | None
+    status: Literal["optimal", "infeasible", "unbounded"] = "optimal"
+    multiple_optima: bool = False
+    view_bounds: GraphViewBounds | None = None
+    region_polygon: list[GraphPoint] = Field(default_factory=list)
+    cut_points: list[GraphPoint] = Field(default_factory=list)
 
 
 Graphical = Annotated[Union[GraphNotApplicable, GraphApplicable], Field(discriminator="applicable")]

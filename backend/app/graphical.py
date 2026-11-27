@@ -10,7 +10,9 @@ from .models import (
     Constraint,
     GraphApplicable,
     GraphNotApplicable,
+    GraphPoint,
     Graphical,
+    GraphViewBounds,
     GraphVertex,
     InfeasibleCorner,
     ObjectiveLine,
@@ -150,6 +152,63 @@ def _objective_improves_along_recession(
     return min(values) < 0
 
 
+def _clip_half_plane(
+    polygon: list[Point],
+    a: Fraction,
+    b: Fraction,
+    rhs: Fraction,
+) -> list[Point]:
+    """Recorta un polígono al semiplano a*x1 + b*x2 <= rhs."""
+    if not polygon:
+        return []
+
+    clipped: list[Point] = []
+    for index, current in enumerate(polygon):
+        following = polygon[(index + 1) % len(polygon)]
+        current_value = a * current[0] + b * current[1] - rhs
+        following_value = a * following[0] + b * following[1] - rhs
+
+        if current_value <= 0:
+            clipped.append(current)
+        if (current_value < 0 < following_value) or (following_value < 0 < current_value):
+            ratio = current_value / (current_value - following_value)
+            clipped.append(
+                (
+                    current[0] + ratio * (following[0] - current[0]),
+                    current[1] + ratio * (following[1] - current[1]),
+                )
+            )
+
+    deduplicated: list[Point] = []
+    for point in clipped:
+        if not deduplicated or point != deduplicated[-1]:
+            deduplicated.append(point)
+    if len(deduplicated) > 1 and deduplicated[0] == deduplicated[-1]:
+        deduplicated.pop()
+    return deduplicated
+
+
+def _clipped_region(constraints: list[Constraint], x_max: Fraction, y_max: Fraction) -> list[Point]:
+    """Obtiene el polígono factible recortado al rectángulo visible."""
+    polygon = [
+        (Fraction(0), Fraction(0)),
+        (x_max, Fraction(0)),
+        (x_max, y_max),
+        (Fraction(0), y_max),
+    ]
+    for constraint in constraints:
+        a, b = (_fraction(value) for value in constraint.coefficients)
+        rhs = _fraction(constraint.rhs)
+        polygon = _clip_half_plane(polygon, a, b, rhs)
+        if constraint.relation == ">=":
+            polygon = _clip_half_plane(polygon, -a, -b, -rhs)
+        elif constraint.relation == "=":
+            polygon = _clip_half_plane(polygon, -a, -b, -rhs)
+        if not polygon:
+            break
+    return polygon
+
+
 def _label(index: int) -> str:
     """Genera etiquetas A..Z, AA..AZ, etc."""
     result = ""
@@ -205,7 +264,8 @@ def build_graphical(problem: Problem) -> Graphical:
         recession_interval is not None
         and _objective_improves_along_recession(recession_interval, objective, problem.sense)
     )
-    has_optimum = bool(feasible) and not objective_unbounded
+    status = "infeasible" if not feasible else "unbounded" if objective_unbounded else "optimal"
+    has_optimum = status == "optimal"
 
     values = {
         point: objective[0] * point[0] + objective[1] * point[1]
@@ -218,6 +278,10 @@ def build_graphical(problem: Problem) -> Graphical:
         optimal_points = {point for point, value in values.items() if value == best_value}
 
     ordered_vertices = _sort_vertices(feasible)
+    multiple_optima = has_optimum and len(ordered_vertices) > 1 and any(
+        first in optimal_points and second in optimal_points and values[first] == values[second]
+        for first, second in zip(ordered_vertices, ordered_vertices[1:] + ordered_vertices[:1])
+    )
     vertices = [
         GraphVertex(
             label=_label(index),
@@ -247,6 +311,14 @@ def build_graphical(problem: Problem) -> Graphical:
         if best_value is not None
         else None
     )
+    x_max = max(Fraction(1), *(point[0] for point in candidates)) * Fraction(6, 5)
+    y_max = max(Fraction(1), *(point[1] for point in candidates)) * Fraction(6, 5)
+    region_polygon = _clipped_region(constraints, x_max, y_max) if feasible else []
+    cut_points = [
+        point
+        for point in region_polygon
+        if point[0] == x_max or point[1] == y_max
+    ]
 
     return GraphApplicable(
         applicable=True,
@@ -255,4 +327,29 @@ def build_graphical(problem: Problem) -> Graphical:
         vertices=vertices,
         infeasible_corners=infeasible_corners,
         objective_line=objective_line,
+        status=status,
+        multiple_optima=multiple_optima,
+        view_bounds=GraphViewBounds(x_max=_rational(x_max), y_max=_rational(y_max)),
+        region_polygon=[GraphPoint(x1=_rational(x), x2=_rational(y)) for x, y in region_polygon],
+        cut_points=[GraphPoint(x1=_rational(x), x2=_rational(y)) for x, y in cut_points],
     )
+
+
+if __name__ == "__main__":
+    import json
+    from pathlib import Path
+
+    examples_path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "data" / "examples.json"
+    examples = json.loads(examples_path.read_text(encoding="utf-8"))["examples"]
+    checked = 0
+    for example in examples:
+        problem = Problem.model_validate(example["problem"])
+        expected = example["response"]["graphical"]
+        actual = build_graphical(problem)
+        serialized = actual.model_dump(mode="json", by_alias=True)
+        assert {key: serialized[key] for key in expected} == expected, example["id"]
+        if actual.applicable:
+            assert actual.status == example["response"]["status"], example["id"]
+            assert actual.multiple_optima == example["response"]["multipleOptima"], example["id"]
+        checked += 1
+    print(f"OK: {checked} ejemplos de examples.json verificados.")

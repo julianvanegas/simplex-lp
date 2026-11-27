@@ -146,10 +146,16 @@ export function GraphView({ problem, response, format }: GraphViewProps) {
   const coords = [...graph.vertices, ...graph.infeasibleCorners, ...steps].map(
     (point): Point => [toNumber(point.x1), toNumber(point.x2)],
   );
-  let maxX = Math.max(1, ...coords.map(([x]) => x)) * 1.15;
-  let maxY = Math.max(1, ...coords.map(([, y]) => y)) * 1.15;
-  maxX = Math.max(maxX, maxY * 0.6);
-  maxY = Math.max(maxY, maxX * 0.6);
+  let maxX = graph.viewBounds
+    ? toNumber(graph.viewBounds.xMax)
+    : Math.max(1, ...coords.map(([x]) => x)) * 1.15;
+  let maxY = graph.viewBounds
+    ? toNumber(graph.viewBounds.yMax)
+    : Math.max(1, ...coords.map(([, y]) => y)) * 1.15;
+  if (!graph.viewBounds) {
+    maxX = Math.max(maxX, maxY * 0.6);
+    maxY = Math.max(maxY, maxX * 0.6);
+  }
 
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -157,7 +163,11 @@ export function GraphView({ problem, response, format }: GraphViewProps) {
   const py = (y: number) => MARGIN.top + plotHeight - (y / maxY) * plotHeight;
   const path = (points: Point[]) => points.map(([x, y]) => `${px(x)},${py(y)}`).join(" ");
 
-  const region = graph.regionEmpty ? [] : feasiblePolygon(problem.constraints, maxX, maxY);
+  const region = graph.regionEmpty
+    ? []
+    : graph.regionPolygon
+      ? graph.regionPolygon.map((point): Point => [toNumber(point.x1), toNumber(point.x2)])
+      : feasiblePolygon(problem.constraints, maxX, maxY);
   const optimalVertices = graph.vertices.filter((vertex) => vertex.optimal);
   const objective = graph.objectiveLine;
   const objectiveSegment = objective
@@ -213,6 +223,8 @@ export function GraphView({ problem, response, format }: GraphViewProps) {
 
   const summary = graph.regionEmpty
     ? "No hay región factible: las restricciones no tienen puntos en común con x₁, x₂ ≥ 0."
+    : graph.status === "unbounded"
+      ? "La función objetivo puede mejorar sin límite en una dirección factible."
     : graph.regionBounded
       ? null
       : "La región factible no está acotada: continúa más allá del área dibujada.";
@@ -265,7 +277,7 @@ export function GraphView({ problem, response, format }: GraphViewProps) {
                 </g>
               );
             })}
-            {showOptimum && response.multipleOptima && optimalVertices.length >= 2 && (
+            {showOptimum && (graph.multipleOptima ?? response.multipleOptima) && optimalVertices.length >= 2 && (
               <line
                 className="optimal-edge"
                 x1={px(toNumber(optimalVertices[0].x1))}

@@ -68,6 +68,7 @@ form.model_dump(by_alias=True)  # {"minToMax": true, "objectiveTarget": "-Z", ..
 ```
 
 - Los valores exactos son texto: `"2/5"`, `"-3"`, `"0"`. Se calcula con `fractions.Fraction` y se convierte a texto al final; un decimal como `"0.4"` no pasa la validación.
+- El resultado gráfico clasifica problemas óptimos, infactibles y no acotados, identifica óptimos múltiples y entrega límites de vista con 20 % de margen, junto con el polígono factible recortado y sus puntos de corte.
 - Los campos sin valor por defecto son obligatorios aunque valgan `None` (por ejemplo `ratio`): hay que pasarlos siempre. Los opcionales del contrato (`first_optimal`, `alternate_entering`) se omiten del JSON si no se asignan.
 - Mientras `solver.solve` lance `NotImplementedError`, la API responde 501 y el frontend muestra el aviso de que no hay servidor de cálculo.
 
