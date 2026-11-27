@@ -27,6 +27,8 @@ app.add_middleware(
     CORSMiddleware,
     # En producción se define ALLOWED_ORIGINS con la URL del frontend desplegado.
     allow_origins=[o.strip() for o in os.getenv("ALLOWED_ORIGINS", DEFAULT_ORIGINS).split(",") if o.strip()],
+    # Opcional: expresión regular para las vistas previas de Vercel, que cambian en cada PR.
+    allow_origin_regex=os.getenv("ALLOWED_ORIGIN_REGEX") or None,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
