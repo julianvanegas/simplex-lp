@@ -13,7 +13,7 @@ import {
   type ProblemDraft,
 } from "@/lib/validation";
 import { ProblemForm } from "./ProblemForm";
-import { ResultsPanel } from "./ResultsPanel";
+import { ResultsPanel, type SolveMode } from "./ResultsPanel";
 
 interface SolvedState {
   problem: Problem;
@@ -27,6 +27,7 @@ export function SimplexApp() {
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const [solved, setSolved] = useState<SolvedState | null>(null);
+  const [mode, setMode] = useState<SolveMode>("direct");
   const requestId = useRef(0);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +108,8 @@ export function SimplexApp() {
           issues={issues}
           showIssues={showIssues}
           loading={loading}
+          mode={mode}
+          onModeChange={setMode}
           onDraftChange={editDraft}
           onExampleChange={loadExample}
           onClear={clear}
@@ -128,6 +131,7 @@ export function SimplexApp() {
             <ResultsPanel
               problem={solved.problem}
               response={solved.response}
+              mode={mode}
             />
           )}
         </div>
